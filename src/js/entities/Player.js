@@ -11,7 +11,12 @@ export class Player {
     this.gravity = 20;
     this.isOnGround = true;
     this.camera = camera;
-    this.cameraOffset = new THREE.Vector3(0, 1.6, 0);
+
+    // Third-person camera settings
+    this.cameraOffset = new THREE.Vector3(0, 8, 12); // Position camera above and behind player
+    this.cameraLookOffset = new THREE.Vector3(0, 0, -5); // Look ahead of the player
+    this.cameraRotation = new THREE.Euler(-Math.PI / 4, 0, 0, "YXZ"); // Look down at an angle
+
     this.attackCooldown = 0;
     this.attackRate = 0.5; // seconds between attacks
 
@@ -55,8 +60,8 @@ export class Player {
   }
 
   update(deltaTime, inputHandler) {
-    // Handle player rotation from mouse movement
-    this.handleRotation(inputHandler);
+    // Handle player rotation from keyboard input (not mouse for third-person)
+    this.handleRotation(deltaTime, inputHandler);
 
     // Handle player movement from keyboard input
     this.handleMovement(deltaTime, inputHandler);
@@ -67,27 +72,33 @@ export class Player {
     // Handle attacking
     this.handleAttacking(deltaTime, inputHandler);
 
-    // Update camera position to follow player
+    // Update camera position to follow player in third-person
     this.updateCamera();
 
     // Update collider position
     this.collider.center.copy(this.position);
   }
 
-  handleRotation(inputHandler) {
-    if (inputHandler.isPointerLocked) {
-      const mouseSensitivity = 0.002;
-      const mouseMovement = inputHandler.getMouseMovement();
+  handleRotation(deltaTime, inputHandler) {
+    // For third-person, we'll rotate the player based on movement direction
+    // instead of mouse movement
+    const direction = inputHandler.getMovementDirection();
 
-      // Update rotation based on mouse movement
-      this.rotation.y -= mouseMovement.x * mouseSensitivity;
-      this.rotation.x -= mouseMovement.y * mouseSensitivity;
+    if (direction.length() > 0) {
+      // Calculate the target rotation based on movement direction
+      const targetRotation = Math.atan2(direction.x, direction.z);
 
-      // Clamp vertical rotation to avoid flipping
-      this.rotation.x = Math.max(
-        -Math.PI / 2,
-        Math.min(Math.PI / 2, this.rotation.x)
-      );
+      // Smoothly rotate towards the target rotation
+      const rotationSpeed = 10;
+      const angleDiff = targetRotation - this.rotation.y;
+
+      // Normalize angle difference to [-PI, PI]
+      const normalizedAngleDiff =
+        ((angleDiff + Math.PI) % (Math.PI * 2)) - Math.PI;
+
+      // Apply smooth rotation
+      this.rotation.y +=
+        normalizedAngleDiff * Math.min(rotationSpeed * deltaTime, 1);
 
       // Apply rotation to mesh
       this.mesh.rotation.y = this.rotation.y;
@@ -106,18 +117,22 @@ export class Player {
     // Create a movement vector
     const movement = new THREE.Vector3();
 
-    // Forward/backward movement (in the direction the player is facing)
+    // Forward/backward movement
     if (direction.z !== 0) {
       movement.z = direction.z;
     }
 
-    // Left/right movement (perpendicular to the direction the player is facing)
+    // Left/right movement
     if (direction.x !== 0) {
       movement.x = direction.x;
     }
 
-    // Apply rotation to movement vector
-    movement.applyEuler(new THREE.Euler(0, this.rotation.y, 0));
+    // For third-person, we want to move relative to the camera's orientation
+    // Get camera's horizontal rotation (y-axis)
+    const cameraYRotation = this.camera.rotation.y;
+
+    // Apply camera rotation to movement vector
+    movement.applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraYRotation);
 
     // Scale by speed and delta time
     movement.multiplyScalar(moveSpeed * deltaTime);
@@ -127,6 +142,13 @@ export class Player {
 
     // Update mesh position
     this.mesh.position.copy(this.position);
+
+    // If we're moving, rotate the player to face the movement direction
+    if (movement.length() > 0) {
+      const targetRotation = Math.atan2(movement.x, movement.z);
+      this.rotation.y = targetRotation;
+      this.mesh.rotation.y = this.rotation.y;
+    }
   }
 
   handleJumping(deltaTime, inputHandler) {
@@ -202,11 +224,22 @@ export class Player {
   }
 
   updateCamera() {
-    // Position camera relative to player
-    this.camera.position.copy(this.position).add(this.cameraOffset);
+    // Position camera relative to player for third-person view
+    // Calculate camera position based on player position and offset
+    const cameraPosition = new THREE.Vector3()
+      .copy(this.position)
+      .add(this.cameraOffset);
 
-    // Set camera rotation to match player rotation
-    this.camera.rotation.copy(this.rotation);
+    // Set camera position
+    this.camera.position.copy(cameraPosition);
+
+    // Calculate target position (where the camera should look)
+    const targetPosition = new THREE.Vector3()
+      .copy(this.position)
+      .add(this.cameraLookOffset);
+
+    // Make camera look at the player
+    this.camera.lookAt(targetPosition);
   }
 
   checkCollision(entity) {

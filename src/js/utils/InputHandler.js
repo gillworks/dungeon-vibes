@@ -12,7 +12,10 @@ export class InputHandler {
     // Initialize event listeners
     this.initKeyboardEvents();
     this.initMouseEvents();
-    this.initPointerLock();
+
+    // For third-person, we don't need pointer lock
+    // but we'll keep the code in case we want to switch back
+    // this.initPointerLock();
   }
 
   initKeyboardEvents() {
@@ -53,6 +56,8 @@ export class InputHandler {
     });
   }
 
+  // For third-person, we don't need pointer lock
+  // but we'll keep the code in case we want to switch back
   initPointerLock() {
     // Request pointer lock on canvas click
     document.addEventListener("click", () => {

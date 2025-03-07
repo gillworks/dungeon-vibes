@@ -35,14 +35,16 @@ export class GameEngine {
     this.scene.background = new THREE.Color(0x111111);
     this.scene.fog = new THREE.FogExp2(0x111111, 0.05);
 
-    // Create camera
+    // Create camera for third-person view
     this.camera = new THREE.PerspectiveCamera(
-      75,
+      60, // Wider field of view for third-person
       window.innerWidth / window.innerHeight,
       0.1,
       1000
     );
-    this.camera.position.set(0, 2, 5);
+    // Initial camera position will be set by the player
+    this.camera.position.set(0, 10, 15);
+    this.camera.lookAt(0, 0, 0);
 
     // Create renderer
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
