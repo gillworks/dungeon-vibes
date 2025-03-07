@@ -70,10 +70,37 @@ export class GameEngine {
     // Add lighting
     this.addLighting();
 
+    // Create player at the center of the dungeon
+    const centerX = 5 * this.dungeonGenerator.tileSize;
+    const centerZ = 5 * this.dungeonGenerator.tileSize;
+
     // Create player
     this.player = new Player(this.camera);
+
+    // Set player position to the center of the dungeon
+    this.player.position.set(centerX, 1, centerZ);
+    this.player.mesh.position.copy(this.player.position);
+
     // Connect player to dungeon generator for collision detection
     this.player.setDungeonGenerator(this.dungeonGenerator);
+
+    // Make sure player is not inside a wall
+    if (
+      this.dungeonGenerator.checkWallCollision(
+        this.player.position,
+        this.player.collider.radius
+      )
+    ) {
+      // Find a valid position for the player
+      const validPosition = this.dungeonGenerator.getValidPosition(
+        this.player.position,
+        this.player.collider.radius
+      );
+      this.player.position.copy(validPosition);
+      this.player.mesh.position.copy(validPosition);
+      console.log("Player moved to valid position:", validPosition);
+    }
+
     this.entities.push(this.player);
     this.scene.add(this.player.mesh);
 

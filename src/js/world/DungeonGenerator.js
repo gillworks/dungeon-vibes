@@ -63,7 +63,19 @@ export class DungeonGenerator {
     for (let i = 0; i < wallCount; i++) {
       const x = Math.floor(Math.random() * (width - 2)) + 1;
       const y = Math.floor(Math.random() * (height - 2)) + 1;
-      layout[y][x] = 1;
+
+      // Don't place walls in the center area (3x3 grid)
+      const centerX = Math.floor(width / 2);
+      const centerY = Math.floor(height / 2);
+      const isCenterArea =
+        x >= centerX - 1 &&
+        x <= centerX + 1 &&
+        y >= centerY - 1 &&
+        y <= centerY + 1;
+
+      if (!isCenterArea) {
+        layout[y][x] = 1;
+      }
     }
 
     // Ensure there's a path from the center to the edges
@@ -76,6 +88,15 @@ export class DungeonGenerator {
     // Simple implementation: just clear a cross in the middle
     const centerX = Math.floor(width / 2);
     const centerY = Math.floor(height / 2);
+
+    // Clear the center area (3x3 grid)
+    for (let y = centerY - 1; y <= centerY + 1; y++) {
+      for (let x = centerX - 1; x <= centerX + 1; x++) {
+        if (x > 0 && x < width - 1 && y > 0 && y < height - 1) {
+          layout[y][x] = 2; // Floor
+        }
+      }
+    }
 
     // Horizontal path
     for (let x = 1; x < width - 1; x++) {
@@ -271,8 +292,18 @@ export class DungeonGenerator {
       new THREE.Vector3(-1, 0, -1).normalize(),
     ];
 
+    // Try center of the dungeon first
+    const centerX = 5 * this.tileSize;
+    const centerZ = 5 * this.tileSize;
+    const centerPosition = new THREE.Vector3(centerX, position.y, centerZ);
+
+    if (!this.checkWallCollision(centerPosition, radius)) {
+      return centerPosition;
+    }
+
+    // Try other directions
     for (const direction of directions) {
-      for (let distance = 0.1; distance <= radius * 2; distance += 0.1) {
+      for (let distance = 0.1; distance <= radius * 4; distance += 0.1) {
         const testPosition = position
           .clone()
           .add(direction.clone().multiplyScalar(distance));
@@ -282,7 +313,8 @@ export class DungeonGenerator {
       }
     }
 
-    // If no safe position is found, return the original position
-    return position.clone();
+    // If no safe position is found, return the center position anyway
+    console.warn("Could not find valid position, returning center position");
+    return centerPosition;
   }
 }
