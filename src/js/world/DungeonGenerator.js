@@ -22,6 +22,9 @@ export class DungeonGenerator {
         metalness: 0.0,
       }),
     };
+
+    // Store wall positions for collision detection
+    this.walls = [];
   }
 
   generateDungeon(width, height) {
@@ -86,6 +89,9 @@ export class DungeonGenerator {
   }
 
   createDungeonMesh(dungeon, layout, width, height) {
+    // Clear previous walls
+    this.walls = [];
+
     // Create floor
     const floorGeometry = new THREE.PlaneGeometry(
       width * this.tileSize,
@@ -134,6 +140,13 @@ export class DungeonGenerator {
           wall.castShadow = true;
           wall.receiveShadow = true;
           dungeon.add(wall);
+
+          // Store wall position for collision detection
+          this.walls.push({
+            x: x * this.tileSize,
+            z: y * this.tileSize,
+            size: this.tileSize,
+          });
         }
       }
     }
@@ -209,5 +222,67 @@ export class DungeonGenerator {
         dungeon.add(flame);
       }
     }
+  }
+
+  // Check if a position collides with any wall
+  checkWallCollision(position, radius) {
+    for (const wall of this.walls) {
+      // Calculate the closest point on the wall to the position
+      const closestX = Math.max(
+        wall.x - wall.size / 2,
+        Math.min(position.x, wall.x + wall.size / 2)
+      );
+      const closestZ = Math.max(
+        wall.z - wall.size / 2,
+        Math.min(position.z, wall.z + wall.size / 2)
+      );
+
+      // Calculate the distance between the closest point and the position
+      const distance = Math.sqrt(
+        (closestX - position.x) * (closestX - position.x) +
+          (closestZ - position.z) * (closestZ - position.z)
+      );
+
+      // If the distance is less than the radius, there is a collision
+      if (distance < radius) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  // Get a safe position away from walls
+  getValidPosition(position, radius) {
+    // If there's no collision, return the original position
+    if (!this.checkWallCollision(position, radius)) {
+      return position.clone();
+    }
+
+    // Try to find a safe position by moving away from walls
+    const directions = [
+      new THREE.Vector3(1, 0, 0),
+      new THREE.Vector3(-1, 0, 0),
+      new THREE.Vector3(0, 0, 1),
+      new THREE.Vector3(0, 0, -1),
+      new THREE.Vector3(1, 0, 1).normalize(),
+      new THREE.Vector3(1, 0, -1).normalize(),
+      new THREE.Vector3(-1, 0, 1).normalize(),
+      new THREE.Vector3(-1, 0, -1).normalize(),
+    ];
+
+    for (const direction of directions) {
+      for (let distance = 0.1; distance <= radius * 2; distance += 0.1) {
+        const testPosition = position
+          .clone()
+          .add(direction.clone().multiplyScalar(distance));
+        if (!this.checkWallCollision(testPosition, radius)) {
+          return testPosition;
+        }
+      }
+    }
+
+    // If no safe position is found, return the original position
+    return position.clone();
   }
 }

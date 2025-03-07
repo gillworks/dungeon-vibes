@@ -3,7 +3,7 @@ import * as THREE from "three";
 export class Enemy {
   constructor(x, y, z) {
     // Enemy properties
-    this.position = new THREE.Vector3(x, y, z);
+    this.position = new THREE.Vector3(x, 1, z); // Set y to 1 to ensure they're on the floor
     this.velocity = new THREE.Vector3(0, 0, 0);
     this.rotation = new THREE.Euler(0, 0, 0, "YXZ");
     this.speed = 2;
@@ -65,8 +65,8 @@ export class Enemy {
     this.velocity.y -= 9.8 * deltaTime;
 
     // Check if enemy is on ground
-    if (this.position.y <= 0) {
-      this.position.y = 0;
+    if (this.position.y <= 1) {
+      this.position.y = 1; // Keep at y=1 to stay on the floor
       this.velocity.y = 0;
     }
 
@@ -93,7 +93,7 @@ export class Enemy {
     const z = Math.sin(time * 0.5) * radius;
 
     // Set target position
-    const targetPosition = new THREE.Vector3(x, 0, z);
+    const targetPosition = new THREE.Vector3(x, 1, z); // Keep y at 1
 
     // Calculate direction to target
     const direction = new THREE.Vector3()
@@ -103,8 +103,10 @@ export class Enemy {
     // Calculate movement
     const movement = direction.multiplyScalar(this.speed * deltaTime);
 
-    // Apply movement to position
+    // Apply movement to position (but preserve y)
+    const oldY = this.position.y;
     this.position.add(movement);
+    this.position.y = oldY; // Preserve y position to prevent falling through floor
 
     // Calculate rotation to face movement direction
     if (movement.length() > 0) {
@@ -114,6 +116,7 @@ export class Enemy {
 
   takeDamage(amount) {
     this.health -= amount;
+    console.log(`Enemy took ${amount} damage! Health: ${this.health}`);
 
     // Check if enemy is dead
     if (this.health <= 0) {
@@ -126,5 +129,6 @@ export class Enemy {
     // For now, we'll just hide it
     this.mesh.visible = false;
     this.isDead = true;
+    console.log("Enemy defeated!");
   }
 }

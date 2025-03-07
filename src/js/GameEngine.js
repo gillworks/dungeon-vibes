@@ -72,6 +72,8 @@ export class GameEngine {
 
     // Create player
     this.player = new Player(this.camera);
+    // Connect player to dungeon generator for collision detection
+    this.player.setDungeonGenerator(this.dungeonGenerator);
     this.entities.push(this.player);
     this.scene.add(this.player.mesh);
 
@@ -80,6 +82,9 @@ export class GameEngine {
 
     // Update UI
     this.updateUI();
+
+    // Add debug info
+    this.addDebugInfo();
   }
 
   addLighting() {
@@ -113,9 +118,29 @@ export class GameEngine {
 
   addEnemies(count) {
     for (let i = 0; i < count; i++) {
+      // Generate random positions for enemies
       const x = Math.random() * 20 - 10;
       const z = Math.random() * 20 - 10;
-      const enemy = new Enemy(x, 0, z);
+
+      // Create enemy at position
+      const enemy = new Enemy(x, 1, z);
+
+      // Check if enemy position is valid (not inside a wall)
+      if (
+        this.dungeonGenerator.checkWallCollision(
+          enemy.position,
+          enemy.collider.radius
+        )
+      ) {
+        // If enemy is inside a wall, find a valid position
+        const validPosition = this.dungeonGenerator.getValidPosition(
+          enemy.position,
+          enemy.collider.radius
+        );
+        enemy.position.copy(validPosition);
+        enemy.mesh.position.copy(validPosition);
+      }
+
       this.entities.push(enemy);
       this.scene.add(enemy.mesh);
     }
@@ -164,6 +189,65 @@ export class GameEngine {
         }
       }
     }
+
+    // Handle player attacks
+    if (this.inputHandler.isAttacking() && this.player.attackCooldown <= 0) {
+      // Check for enemies in attack range
+      for (const entity of this.entities) {
+        if (
+          entity !== this.player &&
+          entity instanceof Enemy &&
+          !entity.isDead
+        ) {
+          if (this.player.isInAttackRange(entity)) {
+            // Apply damage to enemy
+            entity.takeDamage(this.player.attackDamage);
+
+            // Visual feedback for attack
+            this.createAttackEffect(entity.position);
+          }
+        }
+      }
+    }
+
+    // Update debug info
+    this.updateDebugInfo();
+  }
+
+  createAttackEffect(position) {
+    // Create a simple visual effect for attacks
+    const geometry = new THREE.SphereGeometry(0.3, 8, 8);
+    const material = new THREE.MeshBasicMaterial({
+      color: 0xffff00,
+      transparent: true,
+      opacity: 0.8,
+    });
+
+    const effect = new THREE.Mesh(geometry, material);
+    effect.position.copy(position);
+    effect.position.y += 1; // Position above the ground
+
+    this.scene.add(effect);
+
+    // Animate the effect
+    const startTime = Date.now();
+    const duration = 300; // milliseconds
+
+    const animateEffect = () => {
+      const elapsed = Date.now() - startTime;
+      const progress = elapsed / duration;
+
+      if (progress < 1) {
+        effect.scale.set(1 + progress, 1 + progress, 1 + progress);
+        effect.material.opacity = 0.8 * (1 - progress);
+
+        requestAnimationFrame(animateEffect);
+      } else {
+        this.scene.remove(effect);
+      }
+    };
+
+    animateEffect();
   }
 
   render() {
@@ -178,5 +262,51 @@ export class GameEngine {
     // Update stats
     document.getElementById("health-value").textContent = this.health;
     document.getElementById("level-value").textContent = this.level;
+  }
+
+  addDebugInfo() {
+    // Create debug container
+    const debugContainer = document.createElement("div");
+    debugContainer.id = "debug-container";
+    debugContainer.style.position = "absolute";
+    debugContainer.style.bottom = "10px";
+    debugContainer.style.left = "10px";
+    debugContainer.style.color = "white";
+    debugContainer.style.fontFamily = "monospace";
+    debugContainer.style.fontSize = "12px";
+    debugContainer.style.backgroundColor = "rgba(0, 0, 0, 0.5)";
+    debugContainer.style.padding = "5px";
+    debugContainer.style.borderRadius = "5px";
+    debugContainer.style.pointerEvents = "none";
+
+    // Add debug text
+    const debugText = document.createElement("div");
+    debugText.id = "debug-text";
+    debugContainer.appendChild(debugText);
+
+    document.body.appendChild(debugContainer);
+  }
+
+  updateDebugInfo() {
+    const debugText = document.getElementById("debug-text");
+    if (debugText) {
+      // Count active enemies
+      const activeEnemies = this.entities.filter(
+        (entity) => entity instanceof Enemy && !entity.isDead
+      ).length;
+
+      // Update debug text
+      debugText.innerHTML = `
+        FPS: ${Math.round(1 / this.clock.getDelta())}<br>
+        Player Position: ${this.player.position.x.toFixed(
+          2
+        )}, ${this.player.position.y.toFixed(
+        2
+      )}, ${this.player.position.z.toFixed(2)}<br>
+        Active Enemies: ${activeEnemies}<br>
+        Attack Cooldown: ${this.player.attackCooldown.toFixed(2)}<br>
+        Controls: WASD to move, Space to jump, Left Click to attack
+      `;
+    }
   }
 }

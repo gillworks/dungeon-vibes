@@ -19,12 +19,21 @@ export class Player {
 
     this.attackCooldown = 0;
     this.attackRate = 0.5; // seconds between attacks
+    this.attackDamage = 25; // Damage per attack
+    this.attackRange = 2.0; // Range of attack
 
     // Create player mesh
     this.createMesh();
 
     // Collision properties
     this.collider = new THREE.Sphere(this.position, 0.5);
+
+    // Reference to the dungeon generator for wall collision
+    this.dungeonGenerator = null;
+  }
+
+  setDungeonGenerator(dungeonGenerator) {
+    this.dungeonGenerator = dungeonGenerator;
   }
 
   createMesh() {
@@ -137,8 +146,49 @@ export class Player {
     // Scale by speed and delta time
     movement.multiplyScalar(moveSpeed * deltaTime);
 
+    // Store current position before movement
+    const oldPosition = this.position.clone();
+
     // Apply movement to position
     this.position.add(movement);
+
+    // Check for wall collision if dungeon generator is available
+    if (
+      this.dungeonGenerator &&
+      this.dungeonGenerator.checkWallCollision(
+        this.position,
+        this.collider.radius
+      )
+    ) {
+      // If there's a collision, revert to the old position
+      this.position.copy(oldPosition);
+
+      // Try to slide along walls
+      const slideX = new THREE.Vector3(movement.x, 0, 0);
+      const slideZ = new THREE.Vector3(0, 0, movement.z);
+
+      // Try moving only in X direction
+      this.position.add(slideX);
+      if (
+        this.dungeonGenerator.checkWallCollision(
+          this.position,
+          this.collider.radius
+        )
+      ) {
+        this.position.copy(oldPosition);
+
+        // Try moving only in Z direction
+        this.position.add(slideZ);
+        if (
+          this.dungeonGenerator.checkWallCollision(
+            this.position,
+            this.collider.radius
+          )
+        ) {
+          this.position.copy(oldPosition);
+        }
+      }
+    }
 
     // Update mesh position
     this.mesh.position.copy(this.position);
@@ -194,6 +244,8 @@ export class Player {
   }
 
   attack() {
+    console.log("Player attacking!");
+
     // Simple attack animation
     const attackAnimation = new THREE.AnimationClip("attack", 0.5, [
       new THREE.VectorKeyframeTrack(
@@ -221,6 +273,9 @@ export class Player {
 
     // Set update callback
     this.onUpdate = updateMixer;
+
+    // Check for enemies in attack range
+    // This will be called from the GameEngine class
   }
 
   updateCamera() {
@@ -247,6 +302,33 @@ export class Player {
     if (entity.collider) {
       const distance = this.position.distanceTo(entity.position);
       return distance < this.collider.radius + entity.collider.radius;
+    }
+    return false;
+  }
+
+  // Check if an entity is within attack range
+  isInAttackRange(entity) {
+    if (entity.position) {
+      // Calculate distance to entity
+      const distance = this.position.distanceTo(entity.position);
+
+      // Check if entity is within attack range
+      if (distance <= this.attackRange) {
+        // Calculate direction to entity
+        const direction = new THREE.Vector3()
+          .subVectors(entity.position, this.position)
+          .normalize();
+
+        // Calculate dot product with player's forward direction
+        const forward = new THREE.Vector3(0, 0, -1).applyEuler(this.rotation);
+        const dot = direction.dot(forward);
+
+        // Check if entity is in front of player (within a 120-degree cone)
+        if (dot > 0.5) {
+          // cos(60 degrees) = 0.5
+          return true;
+        }
+      }
     }
     return false;
   }
